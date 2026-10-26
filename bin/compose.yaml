@@ -1,0 +1,67 @@
+services:
+  selenium-hub:
+    image: selenium/hub:4.50.0-20261010
+    ports:
+      - "127.0.0.1:4444:4444"
+    healthcheck:
+      test: ["CMD", "/opt/bin/check-grid.sh", "--host", "0.0.0.0", "--port", "4444"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+  chrome:
+    image: selenium/node-chrome:4.50.0-20261010
+    shm_size: "2gb"
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: "4442"
+      SE_EVENT_BUS_SUBSCRIBE_PORT: "4443"
+      SE_NODE_MAX_SESSIONS: "1"
+      SE_NODE_SESSION_TIMEOUT: "120"
+    ports:
+      - "127.0.0.1:7900:7900"
+  firefox:
+    image: selenium/node-firefox:4.50.0-20261010
+    shm_size: "2gb"
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: "4442"
+      SE_EVENT_BUS_SUBSCRIBE_PORT: "4443"
+      SE_NODE_MAX_SESSIONS: "1"
+      SE_NODE_SESSION_TIMEOUT: "120"
+    ports:
+      - "127.0.0.1:7901:7900"
+  web:
+    image: nginx:1.28.0-alpine
+    volumes:
+      - ./src/test/resources/site:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  test-runner:
+    build: .
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+      chrome:
+        condition: service_started
+      firefox:
+        condition: service_started
+      web:
+        condition: service_healthy
+    environment:
+      GRID_URL: http://selenium-hub:4444
+      APP_BASE_URL: http://web
+      HEADLESS: "false"
+    volumes:
+      - ./reports:/workspace/reports

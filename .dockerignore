@@ -1,0 +1,7 @@
+target/
+reports/
+.git/
+.settings/
+.classpath
+.project
+*.zip
